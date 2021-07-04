@@ -26,9 +26,25 @@ class fitDates(object):
                 self.period_end,
             )
 
+
 class listOfFittingDates(list):
     def list_of_starting_periods(self) -> list:
         return [period.period_start for period in self]
+
+
+    def index_of_most_recent_period_before_relevant_date(self,
+                                                         relevant_date:
+                                                         datetime.datetime):
+        list_of_start_periods = self.list_of_starting_periods()
+        if relevant_date<list_of_start_periods[0]:
+            raise Exception("Date %s is before first fitting date" % str(relevant_date))
+
+        ## Assumes they are sorted
+        for index, start_date in enumerate(list_of_start_periods):
+            if relevant_date<start_date:
+                return index-1
+
+        return index
 
 IN_SAMPLE = "in_sample"
 ROLLING = "rolling"
@@ -39,7 +55,7 @@ POSSIBLE_DATE_METHODS = [IN_SAMPLE, ROLLING, EXPANDING]
 def generate_fitting_dates(data: pd.DataFrame,
                            date_method: str,
                            rollyears: int=20,
-                           freq: str = "12M") -> listOfFittingDates:
+                           interval_frequency: str = "12M") -> listOfFittingDates:
     """
     generate a list 4 tuples, one element for each year in the data
     each tuple contains [fit_start, fit_end, period_start, period_end] datetime objects
@@ -65,8 +81,8 @@ def generate_fitting_dates(data: pd.DataFrame,
     # generate list of dates, one year apart, including the final date
     list_of_starting_dates_per_period = \
         _list_of_starting_dates_per_period(start_date,
-                                                                           end_date,
-                                                                           freq=freq)
+                                            end_date,
+                                            interval_frequency = interval_frequency)
 
     # loop through each perio
 
@@ -105,12 +121,12 @@ def _in_sample_dates(start_date: datetime.datetime,
 
 def _list_of_starting_dates_per_period(start_date: datetime.datetime,
                                        end_date: datetime.datetime,
-                                       freq: str= "12M"):
+                                       interval_frequency: str= "12M"):
     return  list(
         pd.date_range(
             start_date,
             end_date,
-            freq=freq)) + [end_date]
+            freq=interval_frequency)) + [end_date]
 
 def _fit_dates_for_period_index(period_index: int,
                                 list_of_starting_dates_per_period: list,

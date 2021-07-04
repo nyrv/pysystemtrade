@@ -19,6 +19,7 @@ WEEKS_IN_YEAR,
 MONTHS_IN_YEAR
 
 )
+from syscore.objects import arg_not_supplied
 
 DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 
@@ -128,7 +129,7 @@ class listOfDataFrames(list):
         common_unique_columns = list(set(all_columns_flattened))
         common_unique_columns.sort()
 
-        return common_unique_columns
+        return listOfDataFrames(common_unique_columns)
 
     def reindex_to_common_columns(self, padwith=0.0):
         common_columns = self.common_columns()
@@ -137,6 +138,22 @@ class listOfDataFrames(list):
             for data_item in self
         ]
         return listOfDataFrames(data_reindexed)
+
+    def aligned(self):
+        list_of_df_reindexed = self.reindex_to_common_index()
+        list_of_df_common = list_of_df_reindexed.reindex_to_common_columns()
+
+        return list_of_df_common
+
+    def fill_and_multipy(self):
+        list_of_df_common = self.aligned()
+        list_of_df_common = list_of_df_common.ffill()
+        result = list_of_df_common[0]
+        for other in list_of_df_common[1:]:
+            result = result * other
+
+        return result
+
 
 
 def stacked_df_with_added_time_from_list(data: listOfDataFrames) -> pd.DataFrame:
@@ -503,8 +520,39 @@ def spread_out_annualised_return_over_periods(data_as_annual):
 
     return data_per_period
 
+def from_series_to_matching_df_frame(pd_series: pd.Series,
+                                     pd_df_to_match: pd.DataFrame,
+                                     method="ffill") -> pd.DataFrame:
+    list_of_columns = list(pd_df_to_match.columns)
+    new_df = from_series_to_df_with_column_names(pd_series, list_of_columns)
+    new_df = new_df.reindex(pd_df_to_match.index, method=method)
+
+    return new_df
+
+def from_series_to_df_with_column_names(pd_series: pd.Series,
+                                        list_of_columns: list) -> pd.DataFrame:
+
+    new_df = pd.concat([pd_series]*len(list_of_columns), axis=1)
+    new_df.columns = list_of_columns
+
+    return new_df
+
 if __name__ == "__main__":
     import doctest
 
     doctest.testmod()
 
+
+def get_row_of_df_aligned_to_weights_as_dict(df: pd.DataFrame,
+                                             relevant_date: datetime.datetime = arg_not_supplied) \
+    -> dict:
+
+    if relevant_date is arg_not_supplied:
+        data_at_date = df.iloc[-1]
+    else:
+        try:
+            data_at_date = df.loc[relevant_date]
+        except KeyError:
+            raise Exception("Date %s not found in portfolio weights" % str(relevant_date))
+
+    return data_at_date.to_dict()
